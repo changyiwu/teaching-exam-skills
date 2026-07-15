@@ -6,7 +6,7 @@
 專案用途：一組可重用的 Agent Skills，專注於國中數學命題、審題、幾何配圖與形成性評量小遊戲。
 主要工作目錄：c:\Users\chang\我的雲端硬碟\agents\teaching-exam-skills
 GitHub repo：changyiwu/teaching-exam-skills
-預設 branch：master
+預設 branch：main
 
 ## Obsidian 對應筆記
 
