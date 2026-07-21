@@ -11,7 +11,7 @@ GitHub repo：changyiwu/teaching-exam-skills
 ## Obsidian 對應筆記
 
 Obsidian vault：C:\Users\chang\我的雲端硬碟\2ndbrain
-專案駕駛艙：C:\Users\chang\我的雲端硬碟\2ndbrain\teaching-exam-skills-專案駕駛艙.md
+專案駕駛艙：C:\Users\chang\我的雲端硬碟\2ndbrain\teaching-exam-skills\專案工作流程.md
 
 ## 工作規則
 
