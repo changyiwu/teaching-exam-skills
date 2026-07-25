@@ -16,7 +16,6 @@
 - [ ] 階段四：持續優化數學試題生成 prompt 範本與幾何 SVG 圖像品質
 
 ## 資料夾結構
-- `ANTIGRAVITY.md`：專案進入點說明檔
 - `README.md`：專案說明文件
 - `LICENSE`：MIT 開源授權條款
 - `.gitignore`：Git 忽略清單
@@ -39,5 +38,12 @@
 ## 工作約定
 - 任何 Agent、任何電腦：**開工先讀 `handoff.md`，收工必更新 `handoff.md`**
 - 修改共用檔案前先讀最新內容，避免覆蓋其他 Agent 的變更
-- 所有回應與文件使用繁體中文
+- 所有回應與文件使用繁體中文；涉及檔案操作時回報完整產出位置
+- Windows 指令優先使用 PowerShell 語法
 - 修改前先確認計畫，優先保留原有資料結構
+- 不把每日流水帳寫進本檔
+
+## 安全與隱私
+
+- 不要 commit API key、token、密碼或 Firebase Admin 憑證
+- 不要 commit 學生真名；正式資料只使用班級代號與座號
