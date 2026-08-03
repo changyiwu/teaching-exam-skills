@@ -54,6 +54,7 @@
 - Windows 指令優先使用 PowerShell 語法
 - 修改前先確認計畫，優先保留原有資料結構
 - 不把每日流水帳寫進本檔
+- Obsidian MCP 一律使用**相對路徑** `teaching-exam-skills/專案工作流程.md`，不要寫成 vault 絕對路徑
 
 ## 安全與隱私
 
