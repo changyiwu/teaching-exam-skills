@@ -1,209 +1,144 @@
-# GitHub Pages 自動發佈指南
+# GitHub Pages 自動發佈指南（gh CLI）
 
-此文件說明如何透過 GitHub REST API 將小遊戲自動上傳並發佈至 GitHub Pages。
-
----
-
-## 前置需求：取得 GitHub Token
-
-Claude 第一次執行此流程時，**必須先詢問使用者**：
-
-> 「要自動發佈到 GitHub Pages，我需要您的：
-> 1. **GitHub Personal Access Token**（PAT）
-> 2. **GitHub 帳號名稱（username）**
-> 3. **Repository 名稱**（例如：`teaching-games`，若不存在會自動建立）
->
-> Token 申請步驟：GitHub → Settings → Developer Settings → Personal Access Tokens → Tokens (classic) → Generate new token
-> 需勾選的權限：`repo`（全選）
->
-> ⚠️ Token 只會用於本次操作，不會儲存。"
+用 GitHub 官方 CLI `gh` 發佈遊戲頁面。**不需要、也不要向使用者索取 Personal Access Token**
+——`gh` 自己管理認證，token 不會出現在指令參數或行程列表裡。
 
 ---
 
-## API 流程（Claude 使用 bash_tool 執行）
+## 前置檢查
 
-### Step A：建立或確認 Repository
-
-```bash
-# 檢查 repo 是否存在
-curl -s -o /dev/null -w "%{http_code}" \
-  -H "Authorization: token $GITHUB_TOKEN" \
-  https://api.github.com/repos/$GITHUB_USER/$REPO_NAME
+```powershell
+gh auth status
 ```
 
-若回傳 404，則建立 repo：
-```bash
-curl -s -X POST \
-  -H "Authorization: token $GITHUB_TOKEN" \
-  -H "Content-Type: application/json" \
-  https://api.github.com/user/repos \
-  -d "{\"name\": \"$REPO_NAME\", \"private\": false, \"description\": \"Teaching Mini-Games\"}"
-```
+- 已登入 → 直接往下走，順便記下帳號名稱
+- 未登入或沒裝 `gh` → 停下來告訴使用者：
 
-### Step B：上傳每個 HTML 檔案
+  > 發佈需要 GitHub CLI。請先在終端機執行 `gh auth login`（依畫面選 GitHub.com → HTTPS → 用瀏覽器登入）。
+  > 若尚未安裝，可執行 `winget install --id GitHub.cli`。
 
-```bash
-# 將檔案轉為 base64 並上傳
-FILE_CONTENT=$(base64 -w 0 "$FILE_PATH")
-FILE_NAME=$(basename "$FILE_PATH")
+取得帳號名稱：
 
-# 先檢查檔案是否已存在（取得 SHA）
-SHA=$(curl -s \
-  -H "Authorization: token $GITHUB_TOKEN" \
-  https://api.github.com/repos/$GITHUB_USER/$REPO_NAME/contents/$FILE_NAME \
-  | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('sha',''))" 2>/dev/null)
-
-# 建立或更新檔案
-if [ -z "$SHA" ]; then
-  # 新建檔案
-  curl -s -X PUT \
-    -H "Authorization: token $GITHUB_TOKEN" \
-    -H "Content-Type: application/json" \
-    https://api.github.com/repos/$GITHUB_USER/$REPO_NAME/contents/$FILE_NAME \
-    -d "{\"message\": \"Add $FILE_NAME\", \"content\": \"$FILE_CONTENT\"}"
-else
-  # 更新檔案（需提供 SHA）
-  curl -s -X PUT \
-    -H "Authorization: token $GITHUB_TOKEN" \
-    -H "Content-Type: application/json" \
-    https://api.github.com/repos/$GITHUB_USER/$REPO_NAME/contents/$FILE_NAME \
-    -d "{\"message\": \"Update $FILE_NAME\", \"content\": \"$FILE_CONTENT\", \"sha\": \"$SHA\"}"
-fi
-```
-
-### Step C：啟用 GitHub Pages
-
-```bash
-curl -s -X POST \
-  -H "Authorization: token $GITHUB_TOKEN" \
-  -H "Accept: application/vnd.github+json" \
-  https://api.github.com/repos/$GITHUB_USER/$REPO_NAME/pages \
-  -d '{"source": {"branch": "main", "path": "/"}}'
-```
-
-若已啟用（回傳 409），忽略錯誤繼續。
-
-### Step D：取得發佈網址
-
-```bash
-curl -s \
-  -H "Authorization: token $GITHUB_TOKEN" \
-  https://api.github.com/repos/$GITHUB_USER/$REPO_NAME/pages \
-  | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('html_url',''))"
-```
-
-網址格式：`https://$GITHUB_USER.github.io/$REPO_NAME/`
-
----
-
-## 完整上傳腳本（Python 版，更穩定）
-
-```python
-import base64, json, subprocess, sys, time
-
-def github_api(method, endpoint, token, data=None):
-    cmd = ["curl", "-s", "-X", method,
-           "-H", f"Authorization: token {token}",
-           "-H", "Accept: application/vnd.github+json",
-           "-H", "Content-Type: application/json",
-           f"https://api.github.com{endpoint}"]
-    if data:
-        cmd += ["-d", json.dumps(data)]
-    result = subprocess.run(cmd, capture_output=True, text=True)
-    try:
-        return json.loads(result.stdout)
-    except:
-        return {}
-
-def upload_file(token, user, repo, filepath, filename):
-    with open(filepath, 'rb') as f:
-        content = base64.b64encode(f.read()).decode()
-    
-    # 取得現有 SHA（若存在）
-    existing = github_api("GET", f"/repos/{user}/{repo}/contents/{filename}", token)
-    sha = existing.get("sha")
-    
-    payload = {"message": f"Upload {filename}", "content": content}
-    if sha:
-        payload["sha"] = sha
-    
-    result = github_api("PUT", f"/repos/{user}/{repo}/contents/{filename}", token, payload)
-    return "content" in result or "commit" in result
-
-def publish_to_github(token, user, repo, html_files):
-    """
-    html_files: list of (local_path, filename) tuples
-    Returns: (success, pages_url)
-    """
-    base_url = f"https://{user}.github.io/{repo}"
-    
-    # 1. 建立 repo（若不存在）
-    check = github_api("GET", f"/repos/{user}/{repo}", token)
-    if "id" not in check:
-        github_api("POST", "/user/repos", token, {
-            "name": repo, "private": False,
-            "description": "Teaching Mini-Games - Auto-generated"
-        })
-        time.sleep(2)
-    
-    # 2. 上傳所有檔案
-    for local_path, filename in html_files:
-        success = upload_file(token, user, repo, local_path, filename)
-        print(f"{'✅' if success else '❌'} {filename}")
-    
-    # 3. 啟用 GitHub Pages
-    pages_result = github_api("POST", f"/repos/{user}/{repo}/pages", token,
-                              {"source": {"branch": "main", "path": "/"}})
-    
-    # 4. 等待 Pages 啟用
-    time.sleep(3)
-    pages_info = github_api("GET", f"/repos/{user}/{repo}/pages", token)
-    pages_url = pages_info.get("html_url", base_url)
-    
-    return True, pages_url
+```powershell
+gh api user --jq .login
 ```
 
 ---
 
-## QR Code 回傳格式
+## Step 1：確認或建立 repository
 
-發佈成功後，Claude 應以 Markdown 格式回傳每個遊戲的資訊：
+Repo 名稱預設 `teaching-games`，使用者可指定。
+
+```powershell
+$REPO = "teaching-games"
+$USER = gh api user --jq .login
+
+if (gh repo view "$USER/$REPO" 2>$null) {
+    Write-Output "repo 已存在，將更新內容"
+} else {
+    gh repo create $REPO --public --description "教學小遊戲（自動產生）"
+}
+```
+
+> ⚠️ **建立前必須先問使用者要公開還是私有**。GitHub Pages 在免費帳號只支援公開 repo，
+> 若使用者選私有就要說明 Pages 無法啟用，並改為只提供本機檔案。
+
+---
+
+## Step 2：上傳檔案
+
+用 git 推送（一次 commit 全部檔案，比逐檔呼叫 API 快且乾淨）：
+
+```powershell
+$SRC = ".\output"          # 遊戲 HTML 所在目錄
+$WORK = ".\.publish-tmp"
+
+git clone "https://github.com/$USER/$REPO.git" $WORK 2>$null
+if (-not (Test-Path $WORK)) {
+    New-Item -ItemType Directory $WORK | Out-Null
+    Push-Location $WORK; git init; git branch -M main
+    git remote add origin "https://github.com/$USER/$REPO.git"; Pop-Location
+}
+
+Copy-Item "$SRC\*.html" $WORK -Force
+Push-Location $WORK
+git add .
+git commit -m "發佈教學小遊戲"
+git push -u origin main
+Pop-Location
+Remove-Item $WORK -Recurse -Force
+```
+
+檔案少的時候也可以直接用 API 逐檔上傳：
+
+```powershell
+$b64 = [Convert]::ToBase64String([IO.File]::ReadAllBytes("$SRC\index.html"))
+$sha = gh api "repos/$USER/$REPO/contents/index.html" --jq .sha 2>$null
+$args = @("-f", "message=Update index.html", "-f", "content=$b64")
+if ($sha) { $args += @("-f", "sha=$sha") }
+gh api -X PUT "repos/$USER/$REPO/contents/index.html" @args
+```
+
+---
+
+## Step 3：啟用 GitHub Pages
+
+```powershell
+gh api -X POST "repos/$USER/$REPO/pages" `
+  -f "source[branch]=main" -f "source[path]=/" 2>$null
+```
+
+已啟用會回傳 409，忽略即可。取得網址：
+
+```powershell
+gh api "repos/$USER/$REPO/pages" --jq .html_url
+```
+
+網址格式為 `https://<帳號>.github.io/<repo>/`。
+
+---
+
+## Step 4：回報結果
+
+Pages 首次啟用約需 **1～3 分鐘**才會生效，必須主動告知使用者。
+
+在對話中以 Markdown 列出每個遊戲：
 
 ```markdown
-## ✅ 發佈成功！
+## ✅ 已發佈至 GitHub Pages
 
-**總索引頁**
-🔗 https://username.github.io/repo-name/
-![QR Code](https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=https://username.github.io/repo-name/)
+> ⏳ 若顯示 404，請等 1～3 分鐘後重試。
 
----
+**總索引頁**：https://<帳號>.github.io/<repo>/
 
-### 重點 1：[標題]（選擇題）
-🔗 https://username.github.io/repo-name/game-01-xxx.html
-![QR Code](https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=https://username.github.io/repo-name/game-01-xxx.html)
+| # | 重點 | 遊戲類型 | 網址 |
+|---|------|---------|------|
+| 1 | 整數的運算 | 選擇題 | https://<帳號>.github.io/<repo>/game-01-integer-ops.html |
+| 2 | … | 配對題 | … |
 
-### 重點 2：[標題]（配對題）
-🔗 https://username.github.io/repo-name/game-02-xxx.html
-![QR Code](https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=https://username.github.io/repo-name/game-02-xxx.html)
+每個頁面開啟後都會顯示自己的 QR Code，可直接投影讓學生掃描。
 ```
+
+> **不要**在對話中用 `api.qrserver.com` 之類的外部服務產生 QR 圖片。
+> QR 由頁面自己內嵌產生，見 `references/qr-inline.md`。
 
 ---
 
 ## 錯誤處理
 
-| 錯誤狀況 | 處理方式 |
-|---------|---------|
-| Token 無效（401）| 提示使用者重新產生 Token，確認有 `repo` 權限 |
-| Repo 名稱衝突 | 自動在名稱後加 `-2`，或詢問使用者 |
-| Pages 已啟用（409）| 忽略，繼續取得現有 Pages URL |
-| 上傳失敗（單一檔案）| 重試一次，仍失敗則繼續其他檔案，最後列出失敗清單 |
-| Pages URL 未就緒 | 告知使用者「約 1～3 分鐘後可存取，URL 為：...」|
+| 狀況 | 處理方式 |
+|------|---------|
+| `gh` 未安裝 | 提示 `winget install --id GitHub.cli`，不要改用 PAT 繞過 |
+| 未登入（`gh auth status` 失敗） | 提示 `gh auth login`，等使用者完成再繼續 |
+| repo 名稱已被占用 | 詢問使用者要更新現有 repo 還是換名 |
+| Pages 回傳 409 | 已啟用，忽略後續直接取 URL |
+| 私有 repo | 免費帳號無法啟用 Pages，說明後改為只交付本機檔案 |
+| 推送被拒（非快轉） | 先 `git pull --rebase` 再推，不要用 `--force` |
 
 ---
 
 ## 注意事項
 
-- GitHub Pages 啟用後約需 **1～3 分鐘**才能正式上線
-- 若使用者已有同名 Repo，會直接更新檔案（不覆蓋其他現有檔案）
-- Token 安全：提醒使用者不要將 Token 分享給他人，用完可在 GitHub 撤銷
-- Free 帳號的 GitHub Pages 為公開網頁，請勿存放敏感內容
+- **公開性**：GitHub Pages 為公開網頁。發佈前提醒使用者，內容不得含學生真名或任何個資
+- 已存在的 repo 只會更新同名檔案，不會刪除其他既有檔案
+- 遊戲頁面本身完全離線可用，發佈只是為了讓學生用手機開啟

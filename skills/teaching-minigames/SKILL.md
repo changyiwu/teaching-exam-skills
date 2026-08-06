@@ -99,110 +99,80 @@ description: 教學素材小遊戲產生器。當使用者上傳教材（PDF、�
 產生一個 `index.html`，作為所有小遊戲的入口：
 
 - 列出所有重點與對應遊戲連結
-- 顯示每個遊戲的 QR Code（使用 QR Code 嵌入方式，見下方）
+- 顯示每個遊戲的 QR Code（用 Step 5 的內嵌產生器）
 - 可印出 / 投影給學生使用
 
 ---
 
+## Step 5：QR Code 嵌入（在 HTML 內，完全離線）
 
-
----
-
-## Step 5：QR Code 嵌入（在 HTML 內）
-
-每個遊戲的 HTML 中嵌入會動態顯示自身 QR Code 的程式碼，讓使用者可在瀏覽器中直接顯示 QR Code：
+**完整程式碼見 `references/qr-inline.md`**，把該檔的 `<script>` 整段貼進每個遊戲頁與索引頁。
 
 ```html
 <div class="qr-section">
-  <img id="qr-img" width="150" height="150" alt="QR Code">
+  <canvas id="qr"></canvas>
   <p>掃描開啟此遊戲</p>
 </div>
 <script>
-  // 發佈後自動顯示當前頁面的 QR Code
-  document.getElementById('qr-img').src =
-    'https://api.qrserver.com/v1/create-qr-code/?size=150x150&data='
-    + encodeURIComponent(window.location.href);
+  drawQR(document.getElementById('qr'), window.location.href, 4);
 </script>
 ```
 
----
-
-## Step 6：自動上傳至 GitHub 並發佈
-
-**完整說明請參考：`references/github-publish.md`**
-
-### 6-1. 收集必要資訊
-
-先詢問使用者（若未提供）：
-- **GitHub Personal Access Token**（需有 `repo` 權限）
-- **GitHub 帳號名稱**
-- **Repository 名稱**（預設：`teaching-games`，若不存在會自動建立）
-
-### 6-2. 執行上傳腳本
-
-使用 `bash_tool` 以 Python 腳本呼叫 GitHub REST API：
-
-```bash
-python3 /home/claude/github_upload.py \
-  --token "$TOKEN" \
-  --user "$GITHUB_USER" \
-  --repo "$REPO_NAME" \
-  --files-dir "/mnt/user-data/outputs/"
-```
-
-詳細腳本內容見 `references/github-publish.md` 的「完整上傳腳本（Python 版）」。
-
-**Claude 應在執行前將此腳本寫入 `/home/claude/github_upload.py`。**
-
-### 6-3. 啟用 GitHub Pages
-
-上傳完成後自動呼叫 Pages API 啟用發佈。
-
-### 6-4. 等待並確認
-
-GitHub Pages 約需 **1～3 分鐘**上線。Claude 應告知使用者預計等待時間。
+> ⚠️ **不要使用 `api.qrserver.com` 或任何外部 QR 服務**。學校網路常擋外部網域會造成破圖，
+> 而且會把遊戲網址送到第三方伺服器。內嵌產生器已與 Python `qrcode` 套件逐格比對驗證過。
 
 ---
 
-## Step 7：最終輸出
+## Step 6：輸出檔案
 
-### 7-1. 輸出檔案
-
-Claude 應輸出以下檔案到 `/mnt/user-data/outputs/`，並用 `present_files` 呈現：
+把所有 HTML 寫到**當前工作目錄的 `output\`**：
 
 ```
-outputs/
-├── index.html              # 總索引頁（含所有 QR Code）
+output\
+├── index.html                  # 總索引頁（含所有遊戲的 QR Code）
 ├── game-01-[重點名].html
 ├── game-02-[重點名].html
 └── ...
 ```
 
-### 7-2. 在對話中回傳網址與 QR Code
+先在對話中回報路徑，讓使用者可以先本機開啟測試——遊戲頁完全離線可用，不發佈也能玩。
 
-發佈成功後，**在對話訊息中**以 Markdown 格式顯示每個遊戲的資訊：
+---
+
+## Step 7：發佈至 GitHub Pages（使用者要求才做）
+
+**完整流程見 `references/github-publish.md`**，使用 GitHub 官方 CLI `gh`。
+
+```powershell
+gh auth status          # 確認已登入
+$USER = gh api user --jq .login
+```
+
+- 未安裝或未登入 → 提示使用者執行 `winget install --id GitHub.cli` 與 `gh auth login`
+- **建立 repo 前必須先問使用者要公開還是私有**（免費帳號的 Pages 只支援公開）
+- **發佈前提醒**：GitHub Pages 是公開網頁，內容不得含學生真名或任何個資
+
+> ⚠️ **不要向使用者索取 Personal Access Token**。`gh` 自己管理認證，
+> token 不會出現在指令參數或行程列表裡。
+
+發佈成功後在對話中列出結果：
 
 ```markdown
-## ✅ 已發佈至 GitHub Pages！
+## ✅ 已發佈至 GitHub Pages
 
-> ⏳ 若連結顯示 404，請等待 1～3 分鐘後重試。
+> ⏳ 若顯示 404，請等 1～3 分鐘後重試。
 
----
+**總索引頁**：https://<帳號>.github.io/<repo>/
 
-### 📋 總索引頁
-🔗 https://[user].github.io/[repo]/
-![QR](https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=https://[user].github.io/[repo]/)
+| # | 重點 | 遊戲類型 | 網址 |
+|---|------|---------|------|
+| 1 | [標題] | 選擇題 | https://<帳號>.github.io/<repo>/game-01-xxx.html |
+| 2 | [標題] | 配對題 | … |
 
----
-
-### 重點 1：[標題]（選擇題）
-🔗 https://[user].github.io/[repo]/game-01-xxx.html
-![QR](https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=https://[user].github.io/[repo]/game-01-xxx.html)
-
-### 重點 2：[標題]（配對題）
-🔗 ...
-![QR](...)
+每個頁面開啟後都會顯示自己的 QR Code，可直接投影讓學生掃描。
 ```
+
+> 對話中**不要**用外部 QR 服務的圖片網址。QR 由頁面自己內嵌產生。
 
 ---
 
@@ -214,21 +184,25 @@ outputs/
 - [ ] 每個遊戲至少 3 題（建議 4～6 題）
 - [ ] 答錯時顯示正確答案與說明
 - [ ] 遊戲在手機上正常顯示
-- [ ] QR Code 使用 `window.location.href`（動態，發佈後自動正確）
+- [ ] QR Code 用內嵌產生器 + `window.location.href`（動態，發佈後自動正確）
+- [ ] 全頁沒有任何外部網域請求（CDN、字型、QR 服務都不可以）
 - [ ] 索引頁列出所有遊戲
 
-上傳發佈後確認：
-- [ ] GitHub Repo 已建立（或已存在）
-- [ ] 所有 HTML 檔案已成功上傳
+發佈後確認：
+- [ ] 已先問過使用者 repo 要公開還是私有
+- [ ] 已提醒使用者 Pages 是公開網頁、內容不含學生個資
+- [ ] 所有 HTML 檔案已成功推送
 - [ ] GitHub Pages 已啟用
-- [ ] 對話中顯示每個遊戲的網址與 QR Code 圖片
+- [ ] 對話中列出每個遊戲的網址
 - [ ] 告知使用者 1～3 分鐘生效
 
 ---
 
 ## 注意事項
 
-- **不要使用外部 JS/CSS CDN**：確保離線可用（學校網路常有限制）
+- **完全離線可用**：不使用任何外部 JS/CSS CDN、外部字型、外部 QR 服務。
+  學校網路常有限制，任何外部請求都可能造成破圖或載入失敗
 - **語言**：遊戲界面語言跟隨教材語言（中文教材 → 中文遊戲）
 - **題目準確性**：所有題目與答案必須忠實來自教材，不可自行編造
 - **難度**：形成性評量為主，難度適中，著重記憶與理解層次（Bloom's Level 1-2）
+- **個資**：遊戲內容不得出現學生真名；發佈到 Pages 前再確認一次

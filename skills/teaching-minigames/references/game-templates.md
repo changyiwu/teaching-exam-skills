@@ -86,7 +86,7 @@ h1 { font-size: 1.2rem; color: #3b5bdb; margin-bottom: 4px; }
     <button class="replay-btn" onclick="startGame()">🔄 再玩一次</button>
   </div>
   <div class="qr-section">
-    <img id="qr" width="120" height="120" alt="QR Code">
+    <canvas id="qr" aria-label="QR Code"></canvas>
     <p>掃描 QR Code 開啟此遊戲</p>
   </div>
 </div>
@@ -153,8 +153,8 @@ function answer(i, btn) {
   }, 1800);
 }
 
-document.getElementById('qr').src =
-  `https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(window.location.href)}`;
+// 內嵌 QR 產生器（整段程式碼見 references/qr-inline.md，貼在本 script 之前）
+drawQR(document.getElementById('qr'), window.location.href, 3);
 
 startGame();
 </script>
@@ -301,19 +301,21 @@ const cardPairs = [
     // ...
   ];
   const grid = document.getElementById('games-grid');
+  const base = window.location.href.replace(/index\.html$/, '').replace(/[^/]*$/, '');
   games.forEach((g, i) => {
-    const url = g.file;
     grid.innerHTML += `
       <div class="card">
         <h3>${g.title}</h3>
         <span class="tag">${g.type}</span>
-        <a class="play-btn" href="${url}">▶ 開始遊戲</a>
+        <a class="play-btn" href="${g.file}">▶ 開始遊戲</a>
         <div class="qr-wrap">
-          <img src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(window.location.origin + window.location.pathname.replace('index.html','') + url)}" alt="QR">
+          <canvas id="qr-${i}" aria-label="QR Code"></canvas>
           <p>掃描開啟</p>
         </div>
       </div>`;
   });
+  // 內嵌 QR 產生器（整段程式碼見 references/qr-inline.md，貼在本 script 之前）
+  games.forEach((g, i) => drawQR(document.getElementById(`qr-${i}`), base + g.file, 3));
   </script>
 </body>
 </html>

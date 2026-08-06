@@ -1,1 +1,10 @@
 * text=auto eol=lf
+
+# 二進位檔：明確標示，避免任何情況下被當文字做換行正規化
+*.docx  binary
+*.doc   binary
+*.pdf   binary
+*.png   binary
+*.jpg   binary
+*.xlsx  binary
+*.pptx  binary

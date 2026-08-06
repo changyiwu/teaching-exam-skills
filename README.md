@@ -1,9 +1,11 @@
 # 教學出題技能集（Teaching & Exam Skills）
 
 一組可重用的 **Agent Skills**，專注於**國中數學命題、審題、幾何配圖與形成性評量小遊戲**。
-每個技能皆為獨立資料夾，內含一份 `SKILL.md`（含 YAML frontmatter 描述觸發時機），可供 Claude Code 或任何支援 Agent Skills 規格的 AI agent 直接讀取使用。
+每個技能皆為獨立資料夾，內含一份 `SKILL.md`（含 YAML frontmatter 描述觸發時機），
+可供 Claude Code 或任何支援 Agent Skills 規格的 AI agent 直接讀取使用。
 
 > 所有技能皆以**繁體中文**設計，題目對齊修訂版 Bloom 認知層次。
+> 執行環境鎖定 **Windows + Claude Code**（PowerShell 語法）。
 
 ---
 
@@ -11,43 +13,77 @@
 
 | 技能 | 用途 | 額外檔案 |
 |------|------|----------|
-| [`jh-math-exam`](skills/jh-math-exam/SKILL.md) | 國中數學段考出題與審題專家。設計七/八/九年級段考試題、審題、建立雙向細目表、Bloom 認知層次分析，產出標準版面的題目卷與答案卷。 | — |
-| [`jh-math-context-questions`](skills/jh-math-context-questions/SKILL.md) | 國中數學「生活情境非選擇題」命題。結合時事／生活情境，產出 Bloom 應用／分析層次的兩小題式非選題（共五大題，含詳解），匯出 Word（數學式用 OMML 呈現）。 | — |
-| [`jh-math-geometry`](skills/jh-math-geometry/SKILL.md) | 國中數學幾何圖形 SVG 產生器。三角形、四邊形、圓、坐標平面、立體圖、三角形三心等，可匯出 Word／PPT。可被出題技能呼叫配圖。 | `scripts/`、`references/` |
-| [`teaching-minigames`](skills/teaching-minigames/SKILL.md) | 把教材重點轉成形成性評量小遊戲，發佈為可分享 HTML + QR Code。 | `references/` |
+| [`jh-math-exam`](skills/jh-math-exam/SKILL.md) | 國中數學段考出題與審題。設計七/八/九年級段考試題、審題、雙向細目表、Bloom 層次分析，產出 B4 標準版面的題目卷與答案卷（數學式為 Word OMML）。 | `scripts/`、`references/` |
+| [`jh-math-context-questions`](skills/jh-math-context-questions/SKILL.md) | 國中數學「生活情境非選擇題」命題。結合時事／生活情境，產出 Bloom 應用／分析層次的兩小題式非選題（共五大題，含詳解）。 | — |
+| [`jh-math-geometry`](skills/jh-math-geometry/SKILL.md) | 國中數學幾何圖形 SVG 產生器。三角形、四邊形（可畫高）、圓、坐標平面、立體圖、三角形三心等，可匯出 Word／PPT。可被出題技能呼叫配圖。 | `scripts/`、`references/` |
+| [`teaching-minigames`](skills/teaching-minigames/SKILL.md) | 把教材重點轉成形成性評量小遊戲，發佈為可分享 HTML（內建離線 QR Code）。 | `references/` |
+
+### 技能之間的相依
+
+```
+jh-math-exam ──────────┬──> jh-math-geometry   （幾何配圖）
+                       │
+jh-math-context-questions ──> jh-math-exam     （共用 Word 匯出與 OMML 轉換）
+                       └──> jh-math-geometry   （幾何配圖）
+                       └──> agent-draw（選配） （情境氛圍圖）
+```
+
+`generate_exam_docx.py` 與 `math_omml.py` 放在 `jh-math-exam/scripts/` 底下，
+兩個出題技能共用同一份，避免各自維護一份而分叉。**使用情境非選題技能請一併安裝 `jh-math-exam`。**
 
 ---
 
-## 🚀 給其他 Agent 使用
-
-這是一個**純技能資料夾**結構。最簡單的用法：
+## 🚀 安裝
 
 ```bash
-git clone https://github.com/mathruffian-dot/teaching-exam-skills.git
+git clone https://github.com/changyiwu/teaching-exam-skills.git
 ```
 
-然後讓你的 agent 讀取對應的 `skills/<技能名>/SKILL.md`。每份 `SKILL.md` 的 frontmatter 都描述了觸發情境與操作步驟。
+安裝到 Claude Code 的個人技能目錄：
 
-### 安裝到 Claude Code（個人技能目錄）
-
-```bash
-# macOS / Linux
-cp -r teaching-exam-skills/skills/* ~/.claude/skills/
-
-# Windows (PowerShell)
-Copy-Item teaching-exam-skills/skills/* $HOME/.claude/skills/ -Recurse
+```powershell
+Copy-Item teaching-exam-skills\skills\* $HOME\.claude\skills\ -Recurse -Force
 ```
 
 ---
 
-## ⚠️ 使用前注意（外部依賴）
+## ⚙️ 執行環境
 
-| 技能 | 依賴 | 說明 |
-|------|------|------|
-| `jh-math-context-questions` | `draw` 技能 | SKILL.md 內有寫死路徑 `C:/Users/mathr/.claude/skills/draw/draw.py`（gpt-image-2 生圖）。**本 repo 未含此腳本**；若不需配圖可忽略相關步驟，或自行替換為你的生圖工具。 |
-| `jh-math-context-questions` / `jh-math-exam` | Word 匯出 | 需要可輸出 `.docx`（OMML 數學式）的環境。 |
-| `jh-math-geometry` | Python | `scripts/` 內為 SVG 轉檔與插入 Word/PPT 的腳本，需 Python 環境。 |
-| `teaching-minigames` | GitHub Token | 發佈到 GitHub Pages 時需使用者自備 Personal Access Token（`repo` 權限）。Token 由使用者即時提供，不會被儲存。 |
+| 需求 | 說明 |
+|------|------|
+| **Python 環境** | 沿用 `file-toolkit` 技能的共用環境（`%LOCALAPPDATA%\file-toolkit\.venv`）。各技能的 Step 0 會呼叫 `ensure_env.ps1` 自動建立，含 `python-docx`、`lxml`、`pillow` 等。 |
+| **SVG → PNG** | 依序嘗試 cairosvg → **Edge/Chrome headless** → Inkscape。Windows 上實際走瀏覽器截圖，不需額外安裝；三者皆無時會明確報錯，不會默默只產 SVG。 |
+| **GitHub 發佈** | `teaching-minigames` 使用 GitHub CLI（`winget install --id GitHub.cli` 後 `gh auth login`）。**不需要 Personal Access Token。** |
+| **生圖**（選配） | `jh-math-context-questions` 的情境插圖需要 `agent-draw` 技能；沒有時會自動略過，幾何圖不受影響。 |
+
+所有產出一律寫到**當前工作目錄的 `output\`**。
+
+---
+
+## 📐 版面規格來源
+
+`jh-math-exam/references/` 下保留了學校原始格式檔（`.doc` / `.docx` / `.pdf`），
+並各自附一份 agent 可讀的 `.md` 萃取版：
+
+| Markdown（agent 讀這個） | 原始檔（人工核對用） |
+|------------------------|-------------------|
+| `bloom-taxonomy.md` | `布魯姆分類學.pdf` |
+| `shuangxiang-table.md` | `試卷雙向細目分析表(空白表).doc` |
+| `exam-format.md` | `試卷範例.docx` |
+| `jh-math-curriculum.md` | `康軒-114中數1-3年級課程架構表(114年入學適用).doc` |
+
+> Read 工具開不了舊版 `.doc`，所以 SKILL.md 一律指向 `.md` 版本。
+
+---
+
+## 🔀 與上游的關係
+
+本專案源自 [`mathruffian-dot/teaching-exam-skills`](https://github.com/mathruffian-dot/teaching-exam-skills)
+（非 GitHub fork，是手動 clone 後另建的 repo，因此沒有上游追蹤關係）。
+
+**該上游自 2026-05-30 起未再更新，本專案不再回併。** 已知上游仍存在的問題
+（缺少 Word 匯出腳本、沙箱路徑寫死、`~` 不展開、幾何配圖定位死碼、外部 QR 服務等）
+均已在本專案修正，勿再從上游合併。
 
 ---
 

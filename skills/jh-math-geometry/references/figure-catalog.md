@@ -1,6 +1,19 @@
 # 幾何圖形參數目錄（figure-catalog.md）
 
-本文件列出所有支援的圖形類型及其完整參數說明，供命題或需要精確控制時查閱。
+本文件是所有圖形類型與參數的**唯一來源**。命題技能（`jh-math-exam`、
+`jh-math-context-questions`）的 SKILL.md 只保留 type 對照表，需要寫 `geometry.spec`
+時一律讀本檔。
+
+---
+
+## 畫布尺寸建議
+
+| 用途 | canvas |
+|------|--------|
+| 試卷單圖 | `280 × 220` |
+| 試卷兩圖並排 | 各 `200 × 160` |
+| 情境非選題 | `260 × 210` |
+| 簡報用圖 | `360 × 280` |
 
 ---
 
@@ -88,6 +101,8 @@
     "right_angles": ["A"],
     "diagonals": false,
     "diagonal_labels": {"AC": "m", "BD": "n"},
+    "show_height": false,
+    "height_label": "h",
     "show_dots": true
   }
 }
@@ -102,6 +117,30 @@
 | `trapezoid` | 等腰梯形 |
 | `right_trapezoid` | 直角梯形 |
 | `general` | 任意四邊形 |
+
+### ⚠️ 頂點方位（標邊長前務必確認）
+
+四邊形一律以 **A 左下 → B 右下 → C 右上 → D 左上** 逆時針配置。因此：
+
+| 想標的邊 | 正確的鍵 |
+|---------|---------|
+| 下底（較長的平行邊）| `AB` |
+| 上底（較短的平行邊）| `DC` |
+| 左腰 | `AD` |
+| 右腰 | `BC` |
+
+梯形的平行邊是 **AB 與 DC**，不是 AD 與 BC。題幹要寫「梯形 ABCD 中，AB∥DC」，
+若寫成「AD∥BC」會與圖形矛盾。
+
+### 高（`show_height`）
+
+`show_height: true` 會從上底的一個頂點畫紅色虛線垂直到下底，並加上垂足直角記號；
+`height_label` 為高的標籤文字。適用於梯形與平行四邊形的面積題。
+
+```json
+{"type":"quadrilateral","config":{"subtype":"trapezoid","vertex_labels":["A","B","C","D"],
+ "side_labels":{"AB":"10","DC":"6"},"show_height":true,"height_label":"4"}}
+```
 
 ---
 
@@ -330,4 +369,48 @@
 ### 拋物線 y=x²-2x-3
 ```json
 {"id":"parabola","type":"coordinate_plane","config":{"x_range":[-2,5],"y_range":[-5,6],"parabolas":[{"a":1,"b":-2,"c":-3,"label":"y=x²-2x-3"}]}}
+```
+
+### 直角梯形
+```json
+{"id":"rtrap","type":"quadrilateral","config":{"subtype":"right_trapezoid","vertex_labels":["A","B","C","D"],"side_labels":{"AB":"10","DC":"6"}}}
+```
+
+### 矩形（標長寬）
+```json
+{"id":"rect","type":"quadrilateral","config":{"subtype":"rectangle","vertex_labels":["A","B","C","D"],"side_labels":{"AB":"8","BC":"5"}}}
+```
+
+### 扇形（圓心角填色 + 標半徑）
+```json
+{"id":"sector","type":"circle","config":{"center_label":"O","points":{"A":20,"B":110},"radius_lines":["A","B"],"central_angle":["A","B"],"radius_label":"r"}}
+```
+
+---
+
+## 情境題常用（`jh-math-context-questions`）
+
+### 矩形土地／建築
+```json
+{"id":"land","type":"quadrilateral","config":{"subtype":"rectangle","vertex_labels":["A","B","C","D"],"side_labels":{"AB":"長","BC":"寬"}}}
+```
+
+### 梯形截面（標上下底與高）
+```json
+{"id":"section","type":"quadrilateral","config":{"subtype":"trapezoid","vertex_labels":["A","B","C","D"],"side_labels":{"AB":"下底","DC":"上底"},"show_height":true,"height_label":"h"}}
+```
+
+### 坐標平面路線
+```json
+{"id":"route","type":"coordinate_plane","config":{"x_range":[-1,6],"y_range":[-1,5],"segments":[{"x1":0,"y1":0,"x2":4,"y2":3}],"points":[{"x":0,"y":0,"label":"A"},{"x":4,"y":3,"label":"B"}]}}
+```
+
+### 四角柱包裝盒
+```json
+{"id":"box","type":"solid_3d","config":{"subtype":"rectangular_prism","vertex_labels":["A","B","C","D","E","F","G","H"],"show_hidden":true}}
+```
+
+### 圓柱容器
+```json
+{"id":"tank","type":"solid_3d","config":{"subtype":"cylinder","labels":{"radius":"r","height":"h"}}}
 ```

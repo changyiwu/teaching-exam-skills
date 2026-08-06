@@ -23,6 +23,9 @@ Output:
 import math, json, sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from svg_to_image import svg_to_png, available_backend
+
 
 # ══════════════════════════════════════════════════════
 # SVGCanvas — 低階 SVG 繪圖原語
@@ -396,6 +399,29 @@ def render_quadrilateral(c, cfg):
             next_l = labels[(idx+1) % n]
             c.right_angle_mark(v[0],v[1],verts[prev_l][0],verts[prev_l][1],
                                verts[next_l][0],verts[next_l][1], size=10)
+
+    # ─ 高（虛線 + 直角記號）─
+    if cfg.get('show_height') and n == 4:
+        order = sorted(range(n), key=lambda i: pts[i][1])
+        top = [pts[order[0]], pts[order[1]]]
+        bot = [pts[order[2]], pts[order[3]]]
+        bx1, bx2 = sorted((bot[0][0], bot[1][0]))
+        by = (bot[0][1] + bot[1][1]) / 2.0
+        # 選一個垂足落在底邊上的頂點；都不落在就用上底中點
+        foot_x = None
+        for tp in top:
+            if bx1 - 0.5 <= tp[0] <= bx2 + 0.5:
+                apex, foot_x = tp, tp[0]
+                break
+        if foot_x is None:
+            apex = ((top[0][0] + top[1][0]) / 2.0, (top[0][1] + top[1][1]) / 2.0)
+            foot_x = apex[0]
+        c.line(apex[0], apex[1], foot_x, by, color='#c00', width=1.4, dash='5,3')
+        c.right_angle_mark(foot_x, by, foot_x, apex[1], bx2, by, size=9)
+        hlabel = cfg.get('height_label')
+        if hlabel:
+            c.text(foot_x - 12, (apex[1] + by) / 2.0, str(hlabel),
+                   size=12, italic=True, color='#c00')
 
     # ─ 等邊刻度 ─
     for sk, ntick in cfg.get('equal_marks', {}).items():
@@ -1091,6 +1117,13 @@ def main():
     fmt = options.get('format', 'svg')
     dpi = options.get('dpi', 150)
 
+    if fmt == 'png' and available_backend() is None:
+        print("❌ 需要輸出 PNG，但找不到任何 SVG→PNG 轉換後端。\n"
+              "   請安裝 Microsoft Edge 或 Google Chrome，或設定 GEOMETRY_BROWSER "
+              "環境變數指向瀏覽器執行檔。\n"
+              "   （用 `python svg_to_image.py --check` 可檢查目前狀態）")
+        sys.exit(2)
+
     results = []
     for fig in figures:
         fig_id = fig.get('id', 'figure')
@@ -1101,14 +1134,10 @@ def main():
             entry = {'id': fig_id, 'svg': str(svg_path)}
 
             if fmt == 'png':
-                try:
-                    import cairosvg
-                    png_path = out_dir / f"{fig_id}.png"
-                    cairosvg.svg2png(bytestring=svg.encode(), write_to=str(png_path), dpi=dpi)
-                    entry['png'] = str(png_path)
-                    print(f"✅ {fig_id} → {png_path}")
-                except ImportError:
-                    print(f"⚠️  cairosvg 未安裝，僅輸出 SVG: {svg_path}")
+                png_path = out_dir / f"{fig_id}.png"
+                svg_to_png(svg_path, png_path, dpi=dpi)
+                entry['png'] = str(png_path)
+                print(f"✅ {fig_id} → {png_path}")
             else:
                 print(f"✅ {fig_id} → {svg_path}")
             results.append(entry)
@@ -1121,6 +1150,16 @@ def main():
     with open(manifest, 'w', encoding='utf-8') as f:
         json.dump(results, f, ensure_ascii=False, indent=2)
     print(f"\n📄 Manifest: {manifest}")
+
+    failed = [r['id'] for r in results if 'error' in r]
+    if failed:
+        print(f"❌ 有 {len(failed)} 張圖形渲染失敗：{', '.join(failed)}")
+        sys.exit(1)
+    if fmt == 'png':
+        no_png = [r['id'] for r in results if 'png' not in r]
+        if no_png:
+            print(f"❌ 有 {len(no_png)} 張圖未產出 PNG：{', '.join(no_png)}")
+            sys.exit(1)
 
 
 if __name__ == '__main__':
